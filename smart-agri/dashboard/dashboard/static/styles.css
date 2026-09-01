@@ -1,0 +1,11 @@
+
+.stage-plan { font-size: .8rem; margin: .3rem 0; }
+.stage-plan summary { cursor: pointer; opacity: .8; }
+.stages { list-style: none; margin: .4rem 0 0; padding: 0; }
+.stage-row { display: flex; gap: .6rem; justify-content: space-between;
+             padding: .2rem .4rem; border-left: 3px solid transparent; }
+.stage-name { min-width: 6.5rem; }
+.stage-days { opacity: .55; }
+.stage-done { opacity: .45; }
+.stage-current { border-left-color: currentColor; font-weight: 600; }
+.stage-upcoming { opacity: .75; }

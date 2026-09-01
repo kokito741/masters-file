@@ -1,0 +1,85 @@
+import os, time, requests
+from flask import Flask, request
+
+APP = Flask(__name__)
+PO_TOKEN = os.environ["PUSHOVER_TOKEN"]
+PO_USER  = os.environ["PUSHOVER_USER"]
+
+# min       = soil moisture % below which irrigation is needed (actionable)
+# tmin/tmax = air temperature damage limits                    (advisory)
+ZONES = {
+  "urn:ngsi-ld:Zone:001": {"name":"Basil",       "min":35,"tmin":5,"tmax":38},
+  "urn:ngsi-ld:Zone:002": {"name":"Green onion", "min":30,"tmin":2,"tmax":38},
+  "urn:ngsi-ld:Zone:003": {"name":"Radish",      "min":32,"tmin":2,"tmax":36},
+}
+
+COOLDOWN      = 1800    # dry soil, reservoir
+TEMP_COOLDOWN = 21600   # air temperature
+HYST      = 3
+TEMP_HYST = 2
+_state = {}
+
+def push(title, msg, prio=0):
+    try:
+        r = requests.post("https://api.pushover.net/1/messages.json", data={
+            "token":PO_TOKEN,"user":PO_USER,"title":title,"message":msg,
+            "priority":prio,"sound":"siren" if prio>0 else "pushover"}, timeout=10)
+        print("PUSH", r.status_code, r.text.strip(), "|", title, "|", msg, flush=True)
+        return r.status_code == 200
+    except Exception as e:
+        print("PUSH EXCEPTION:", repr(e), flush=True)
+        return False
+
+def evaluate(eid, kind, trip, clear, title, msg, prio=0, cooldown=COOLDOWN):
+    st = _state.setdefault((eid,kind), {"active":False,"last":0})
+    now = time.time()
+    print(f"  eval {kind} active={st['active']} trip={trip} clear={clear}", flush=True)
+    if st["active"]:
+        if clear:
+            push(title, "Recovered - " + msg, -1)
+            st["active"] = False; st["last"] = 0
+        elif now - st["last"] > cooldown:
+            if push(title, msg, prio): st["last"] = now
+    elif trip:
+        if push(title, msg, prio):
+            st["last"] = now; st["active"] = True
+
+def val(e, k):
+    a = e.get(k)
+    if not isinstance(a, dict): return None
+    try: return float(a["value"])
+    except (TypeError, ValueError, KeyError): return None
+
+@APP.route("/notify", methods=["POST"])
+def notify():
+    body = request.get_json(force=True, silent=True)
+    if not body:
+        print("BAD BODY:", request.data[:200], flush=True)
+        return "", 204
+    for e in body.get("data", []):
+        eid = e.get("id"); z = ZONES.get(eid)
+        print("ENTITY", eid, "known" if z else "UNKNOWN", list(e.keys()), flush=True)
+        if not z: continue
+        sm = val(e,"soilMoisture")
+        at = val(e,"airTemperature")
+        wl = val(e,"waterLevel")
+        print(f"  sm={sm} air={at} wl={wl}", flush=True)
+
+        if sm is not None:
+            evaluate(eid, "dry", sm < z["min"], sm >= z["min"] + HYST,
+                     f"{z['name']} dry", f"Soil {sm:.1f}% (min {z['min']}%)", 1)
+
+        if at is not None:
+            evaluate(eid, "airtemp",
+                     not (z["tmin"] <= at <= z["tmax"]),
+                     z["tmin"]+TEMP_HYST <= at <= z["tmax"]-TEMP_HYST,
+                     f"{z['name']} air temp",
+                     f"Air {at:.1f}C outside {z['tmin']}-{z['tmax']}C",
+                     0, TEMP_COOLDOWN)
+
+        if wl is not None:
+            evaluate(eid, "tank", wl < 15, wl > 25,
+                     "Reservoir low", f"Level {wl:.0f}%", 1)
+    return "", 204
+
+APP.run(host="0.0.0.0", port=5002)

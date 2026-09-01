@@ -1,0 +1,27 @@
+services:
+  dashboard:
+    build: ./dashboard
+    container_name: dashboard
+    restart: unless-stopped
+    environment:
+      - ORION_URL=http://orion:1026
+      - QUANTUMLEAP_URL=http://quantumleap:8668
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - FIWARE_SERVICE=smartfarm
+      - FIWARE_SERVICEPATH=/
+      - FIWARE_API_KEY=4jggokgpepnvsb2uv4s40d59ov
+      - KEYROCK_URL=http://keyrock:3005
+      - KEYROCK_CLIENT_ID=${KEYROCK_CLIENT_ID}
+      - KEYROCK_CLIENT_SECRET=${KEYROCK_CLIENT_SECRET}
+      - CALLBACK_URL=http://localhost:5000/callback
+      - GRAFANA_PANEL_URL=${GRAFANA_PANEL_URL}
+      - SECRET_KEY=${FLASK_SECRET_KEY}
+    ports:
+      - "5000:5000"
+    networks:
+      - fiware
+
+networks:
+  fiware:
+    external: true

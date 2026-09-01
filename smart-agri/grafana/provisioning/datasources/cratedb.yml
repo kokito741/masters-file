@@ -1,0 +1,23 @@
+# CrateDB speaks the PostgreSQL wire protocol on port 5432, so Grafana's
+# built-in postgres datasource works. QuantumLeap writes to schema
+# mt<fiware-service> and table et<entity_type>, both lowercased:
+#   mtsmartfarm.etzone
+apiVersion: 1
+
+datasources:
+  - name: CrateDB
+    type: postgres
+    access: proxy
+    url: crate-db:5432
+    database: doc
+    user: crate
+    isDefault: true
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1000
+      timescaledb: false
+      maxOpenConns: 5
+      maxIdleConns: 2
+    secureJsonData:
+      password: ""
+    editable: true

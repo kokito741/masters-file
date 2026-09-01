@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+{% if error_banner %}
+<div class="banner-error">{{ error_banner }}</div>
+{% endif %}
+<div id="zones" data-is-admin="{{ 'true' if is_admin else 'false' }}">
+  {% for zone in zones %}
+    <article class="zone-card {% if zone.stale %}stale{% endif %}" data-zone="{{ zone.zone }}">
+      <div class="zone-header">
+        <h2>{{ zone.entityId }}</h2>
+        <span class="badge {{ zone.irrigationClass }}">{{ zone.irrigationLabel }}</span>
+      </div>
+      <p class="zone-meta">Observed: {{ zone.observedAt or 'n/a' }}</p>
+      {% if zone.stale %}<p class="stale-text">{{ zone.staleText }}</p>{% endif %}
+      <div class="metrics">
+        <div>Soil Moisture: <strong>{{ zone.soilMoisture if zone.soilMoisture is not none else 'n/a' }}%</strong></div>
+        <div>Air Temp: <strong>{{ zone.airTemperature if zone.airTemperature is not none else 'n/a' }}°C</strong></div>
+        <div>Air Humidity: <strong>{{ zone.airHumidity if zone.airHumidity is not none else 'n/a' }}%</strong></div>
+        <div>Soil EC: <strong>{{ zone.soilConductivity if zone.soilConductivity is not none else 'n/a' }} µS/cm</strong></div>
+        <div>Soil pH: <strong>{{ zone.soilPH if zone.soilPH is not none else 'n/a' }}</strong></div>
+        <div>Flow Rate: <strong>{{ zone.flowRate if zone.flowRate is not none else 'n/a' }} L/min</strong></div>
+        {% if zone.zone == 'zone001' %}
+        <div>Reservoir: <strong>{{ zone.waterLevel if zone.waterLevel is not none else 'n/a' }}%</strong></div>
+        {% endif %}
+      </div>
+      <div class="band">
+        Moisture band: {{ zone.moistureMin if zone.moistureMin is not none else 'n/a' }}% - {{ zone.moistureMax if zone.moistureMax is not none else 'n/a' }}%
+      </div>
+      <progress max="100" value="{{ zone.soilMoisture if zone.soilMoisture is not none else 0 }}"></progress>
+
+      {% if is_admin %}
+      <div class="controls">
+        <button class="btn cmd" data-command="valve" data-value="open">Open Valve</button>
+        <button class="btn cmd" data-command="valve" data-value="close">Close Valve</button>
+        <div class="thresholds">
+          <label>Min <input type="number" class="min-input" min="1" max="99" step="0.1" value="{{ zone.moistureMin if zone.moistureMin is not none else '' }}"></label>
+          <label>Max <input type="number" class="max-input" min="1" max="100" step="0.1" value="{{ zone.moistureMax if zone.moistureMax is not none else '' }}"></label>
+          <button class="btn apply-thresholds">Apply</button>
+        </div>
+      </div>
+      {% endif %}
+      <p class="cmd-result" aria-live="polite"></p>
+    </article>
+  {% endfor %}
+</div>
+
+{% if grafana_panel_url %}
+<section class="panel">
+  <h2>Grafana</h2>
+  <iframe title="grafana" src="{{ grafana_panel_url }}" loading="lazy" referrerpolicy="no-referrer"></iframe>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.initialZones = {{ zones|tojson }};
+</script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% endblock %}

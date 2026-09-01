@@ -1,0 +1,44 @@
+{
+  "run_id": "jitter-n3-20260831-172942",
+  "zones": 3,
+  "connections": 3,
+  "interval_s": 10.0,
+  "jitter": true,
+  "duration_s": 600,
+  "poll_resolution_ms": 100.0,
+  "messages_published": 179,
+  "probes_completed": 35,
+  "probe_timeouts": 0,
+  "t_publish": {
+    "n": 179,
+    "mean_ms": 1.1,
+    "p50_ms": 1.2,
+    "p95_ms": 1.4,
+    "p99_ms": 1.6,
+    "max_ms": 1.6
+  },
+  "t_orion": {
+    "n": 35,
+    "mean_ms": 114.0,
+    "p50_ms": 115.4,
+    "p95_ms": 118.0,
+    "p99_ms": 118.6,
+    "max_ms": 118.8
+  },
+  "t_crate": {
+    "n": 35,
+    "mean_ms": 602.7,
+    "p50_ms": 647.8,
+    "p95_ms": 1006.5,
+    "p99_ms": 1151.7,
+    "max_ms": 1186.5
+  },
+  "backlog": {
+    "n": 35,
+    "mean_ms": 488.7,
+    "p50_ms": 531.1,
+    "p95_ms": 890.1,
+    "p99_ms": 1035.7,
+    "max_ms": 1071.0
+  }
+}

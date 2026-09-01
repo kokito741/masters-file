@@ -1,0 +1,127 @@
+const zonesRoot = document.getElementById("zones");
+
+function formatValue(value, suffix = "") {
+  return value === null || value === undefined ? "n/a" : `${value}${suffix}`;
+}
+
+function zoneCardMarkup(zone, isAdmin) {
+  const reservoir = zone.zone === "zone001"
+    ? `<div>Reservoir: <strong>${formatValue(zone.waterLevel, "%")}</strong></div>`
+    : "";
+
+  const controls = isAdmin ? `
+    <div class="controls">
+      <button class="btn cmd" data-command="valve" data-value="open">Open Valve</button>
+      <button class="btn cmd" data-command="valve" data-value="close">Close Valve</button>
+      <div class="thresholds">
+        <label>Min <input type="number" class="min-input" min="1" max="99" step="0.1" value="${zone.moistureMin ?? ""}"></label>
+        <label>Max <input type="number" class="max-input" min="1" max="100" step="0.1" value="${zone.moistureMax ?? ""}"></label>
+        <button class="btn apply-thresholds">Apply</button>
+      </div>
+    </div>
+  ` : "";
+
+  return `
+    <article class="zone-card ${zone.stale ? "stale" : ""}" data-zone="${zone.zone}">
+      <div class="zone-header">
+        <h2>${zone.entityId}</h2>
+        <span class="badge ${zone.irrigationClass}">${zone.irrigationLabel}</span>
+      </div>
+      <p class="zone-meta">Observed: ${zone.observedAt ?? "n/a"}</p>
+      ${zone.stale ? `<p class="stale-text">${zone.staleText}</p>` : ""}
+      <div class="metrics">
+        <div>Soil Moisture: <strong>${formatValue(zone.soilMoisture, "%")}</strong></div>
+        <div>Air Temp: <strong>${formatValue(zone.airTemperature, "°C")}</strong></div>
+        <div>Air Humidity: <strong>${formatValue(zone.airHumidity, "%")}</strong></div>
+        <div>Soil EC: <strong>${formatValue(zone.soilConductivity, " µS/cm")}</strong></div>
+        <div>Soil pH: <strong>${formatValue(zone.soilPH)}</strong></div>
+        <div>Flow Rate: <strong>${formatValue(zone.flowRate, " L/min")}</strong></div>
+        ${reservoir}
+      </div>
+      <div class="band">Moisture band: ${formatValue(zone.moistureMin, "%")} - ${formatValue(zone.moistureMax, "%")}</div>
+      <progress max="100" value="${zone.soilMoisture ?? 0}"></progress>
+      ${controls}
+      <p class="cmd-result" aria-live="polite"></p>
+    </article>
+  `;
+}
+
+function renderZones(zones, isAdmin) {
+  zonesRoot.innerHTML = zones.map((zone) => zoneCardMarkup(zone, isAdmin)).join("");
+}
+
+async function sendCommand(zone, command, value, resultElement) {
+  resultElement.textContent = "Sending...";
+  const response = await fetch("/api/cmd", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ zone, command, value }),
+  });
+  const payload = await response.json();
+  if (!response.ok || !payload.ok) {
+    resultElement.textContent = payload.error || "Command failed";
+    return;
+  }
+  resultElement.textContent = `Ack: ${payload.ack || payload.payload}`;
+}
+
+async function pollZones(isAdmin) {
+  try {
+    const response = await fetch("/api/zones");
+    if (!response.ok) {
+      return;
+    }
+    const data = await response.json();
+    if (!data.ok) {
+      return;
+    }
+    renderZones(data.zones, isAdmin);
+  } catch (err) {
+    // ignore poll errors and keep last state
+  }
+}
+
+function bindEvents(isAdmin) {
+  zonesRoot.addEventListener("click", async (event) => {
+    const card = event.target.closest(".zone-card");
+    if (!card) {
+      return;
+    }
+    const resultElement = card.querySelector(".cmd-result");
+
+    if (event.target.classList.contains("cmd")) {
+      await sendCommand(
+        card.dataset.zone,
+        event.target.dataset.command,
+        event.target.dataset.value,
+        resultElement,
+      );
+    }
+
+    if (event.target.classList.contains("apply-thresholds")) {
+      const minValue = Number(card.querySelector(".min-input").value);
+      const maxValue = Number(card.querySelector(".max-input").value);
+      if (!(minValue > 0 && minValue < maxValue && maxValue <= 100)) {
+        resultElement.textContent = "Invalid band: require 0 < min < max <= 100";
+        return;
+      }
+
+      await sendCommand(card.dataset.zone, "setmin", minValue, resultElement);
+      if (resultElement.textContent.startsWith("Ack:")) {
+        await sendCommand(card.dataset.zone, "setmax", maxValue, resultElement);
+      }
+    }
+  });
+
+  if (isAdmin) {
+    setInterval(() => pollZones(isAdmin), 30000);
+  } else {
+    setInterval(() => pollZones(false), 30000);
+  }
+}
+
+const isAdmin = zonesRoot?.dataset.isAdmin === "true";
+if (zonesRoot) {
+  bindEvents(isAdmin);
+  pollZones(isAdmin);
+}

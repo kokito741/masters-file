@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SmartFarm Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>SmartFarm Dashboard</h1>
+      <div class="topbar-right">
+        {% if current_user %}<span>{{ current_user }} ({{ current_role }})</span>{% endif %}
+        {% if session.get('access_token') %}<a href="{{ url_for('logout') }}">Logout</a>{% endif %}
+      </div>
+    </header>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

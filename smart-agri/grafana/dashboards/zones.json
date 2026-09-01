@@ -1,0 +1,457 @@
+{
+  "id": null,
+  "uid": "smartagri-zones",
+  "title": "Zone Overview",
+  "tags": [
+    "smartagri",
+    "fiware"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "editable": true,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Soil moisture (current)",
+      "type": "gauge",
+      "datasource": {
+        "type": "postgres",
+        "uid": "CrateDB"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 20
+              },
+              {
+                "color": "green",
+                "value": 35
+              },
+              {
+                "color": "blue",
+                "value": 70
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  time_index AS \"time\",\n  entity_id AS metric,\n  soilmoisture\nFROM mtsmartfarm.etzone\nWHERE time_index >= $__timeFrom() AND time_index <= $__timeTo()\n  AND soilmoisture IS NOT NULL\nORDER BY time_index",
+          "datasource": {
+            "type": "postgres",
+            "uid": "CrateDB"
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Soil EC (current)",
+      "type": "bargauge",
+      "datasource": {
+        "type": "postgres",
+        "uid": "CrateDB"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "\u00b5S/cm",
+          "min": 0,
+          "max": 1200,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 200
+              },
+              {
+                "color": "orange",
+                "value": 800
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  time_index AS \"time\",\n  entity_id AS metric,\n  soilconductivity\nFROM mtsmartfarm.etzone\nWHERE time_index >= $__timeFrom() AND time_index <= $__timeTo()\n  AND soilconductivity IS NOT NULL\nORDER BY time_index",
+          "datasource": {
+            "type": "postgres",
+            "uid": "CrateDB"
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Soil moisture",
+      "type": "timeseries",
+      "datasource": {
+        "type": "postgres",
+        "uid": "CrateDB"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  time_index AS \"time\",\n  entity_id AS metric,\n  soilmoisture\nFROM mtsmartfarm.etzone\nWHERE time_index >= $__timeFrom() AND time_index <= $__timeTo()\n  AND soilmoisture IS NOT NULL\nORDER BY time_index",
+          "datasource": {
+            "type": "postgres",
+            "uid": "CrateDB"
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Air temperature",
+      "type": "timeseries",
+      "datasource": {
+        "type": "postgres",
+        "uid": "CrateDB"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  time_index AS \"time\",\n  entity_id AS metric,\n  airtemperature\nFROM mtsmartfarm.etzone\nWHERE time_index >= $__timeFrom() AND time_index <= $__timeTo()\n  AND airtemperature IS NOT NULL\nORDER BY time_index",
+          "datasource": {
+            "type": "postgres",
+            "uid": "CrateDB"
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Soil pH",
+      "type": "timeseries",
+      "datasource": {
+        "type": "postgres",
+        "uid": "CrateDB"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  time_index AS \"time\",\n  entity_id AS metric,\n  soilph\nFROM mtsmartfarm.etzone\nWHERE time_index >= $__timeFrom() AND time_index <= $__timeTo()\n  AND soilph IS NOT NULL\nORDER BY time_index",
+          "datasource": {
+            "type": "postgres",
+            "uid": "CrateDB"
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Flow rate",
+      "type": "timeseries",
+      "datasource": {
+        "type": "postgres",
+        "uid": "CrateDB"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lpm",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  time_index AS \"time\",\n  entity_id AS metric,\n  flowrate\nFROM mtsmartfarm.etzone\nWHERE time_index >= $__timeFrom() AND time_index <= $__timeTo()\n  AND flowrate IS NOT NULL\nORDER BY time_index",
+          "datasource": {
+            "type": "postgres",
+            "uid": "CrateDB"
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Reservoir level (Zone 001)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "postgres",
+        "uid": "CrateDB"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  time_index AS \"time\",\n  entity_id AS metric,\n  waterlevel\nFROM mtsmartfarm.etzone\nWHERE time_index >= $__timeFrom() AND time_index <= $__timeTo()\n  AND waterlevel IS NOT NULL\nORDER BY time_index",
+          "datasource": {
+            "type": "postgres",
+            "uid": "CrateDB"
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Irrigation state  0 idle | 1 watering | 2 soaking | 3 lockout | 4 manual",
+      "type": "timeseries",
+      "datasource": {
+        "type": "postgres",
+        "uid": "CrateDB"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  time_index AS \"time\",\n  entity_id AS metric,\n  irrigationstate\nFROM mtsmartfarm.etzone\nWHERE time_index >= $__timeFrom() AND time_index <= $__timeTo()\n  AND irrigationstate IS NOT NULL\nORDER BY time_index",
+          "datasource": {
+            "type": "postgres",
+            "uid": "CrateDB"
+          }
+        }
+      ]
+    }
+  ],
+  "__inputs": [],
+  "__requires": []
+}

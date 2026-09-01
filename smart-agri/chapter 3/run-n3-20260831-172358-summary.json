@@ -1,0 +1,44 @@
+{
+  "run_id": "run-n3-20260831-172358",
+  "zones": 3,
+  "connections": 1,
+  "interval_s": 10.0,
+  "jitter": false,
+  "duration_s": 60,
+  "poll_resolution_ms": 100.0,
+  "messages_published": 18,
+  "probes_completed": 9,
+  "probe_timeouts": 0,
+  "t_publish": {
+    "n": 18,
+    "mean_ms": 1.2,
+    "p50_ms": 1.2,
+    "p95_ms": 1.4,
+    "p99_ms": 1.5,
+    "max_ms": 1.5
+  },
+  "t_orion": {
+    "n": 9,
+    "mean_ms": 114.3,
+    "p50_ms": 114.3,
+    "p95_ms": 116.6,
+    "p99_ms": 116.9,
+    "max_ms": 116.9
+  },
+  "t_crate": {
+    "n": 9,
+    "mean_ms": 946.7,
+    "p50_ms": 761.8,
+    "p95_ms": 2097.9,
+    "p99_ms": 2640.1,
+    "max_ms": 2775.7
+  },
+  "backlog": {
+    "n": 9,
+    "mean_ms": 832.4,
+    "p50_ms": 645.7,
+    "p95_ms": 1984.3,
+    "p99_ms": 2526.8,
+    "max_ms": 2662.5
+  }
+}

@@ -1,0 +1,166 @@
+from contextlib import suppress
+
+import secrets
+from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+
+from auth import (
+    admin_required,
+    build_authorize_url,
+    callback_error_response,
+    exchange_code_for_token,
+    fetch_user_info,
+    infer_role_from_userinfo,
+    login_required,
+    logout_session,
+)
+from commands import MQTTCommandClient, normalize_value
+from config import ALLOWED_ZONE_INPUTS, Config
+from fiware import FiwareClient
+
+
+def create_app():
+    app = Flask(__name__)
+    app.config.from_object(Config)
+    app.secret_key = app.config["SECRET_KEY"]
+
+    fiware_client = FiwareClient(Config)
+    command_client = MQTTCommandClient(Config)
+    command_client.start()
+
+    @app.teardown_appcontext
+    def _teardown(exception=None):
+        # keep long-lived client for process lifetime
+        return None
+
+    @app.route("/")
+    @login_required
+    def dashboard():
+        zones = []
+        error = None
+        try:
+            zones = fiware_client.get_zones()
+        except Exception:
+            error = "Unable to read data from Orion. Please try again shortly."
+
+        return render_template(
+            "dashboard.html",
+            zones=zones,
+            role=session.get("role", "Viewer"),
+            is_admin=session.get("role") == "Admin",
+            grafana_panel_url=app.config.get("GRAFANA_PANEL_URL", ""),
+            error_banner=error,
+        )
+
+    @app.route("/login")
+    def login():
+        if session.get("access_token"):
+            return redirect(url_for("dashboard"))
+        # Random per request, checked on callback: this is the CSRF guard,
+        # not merely a parameter Keyrock insists on.
+        state = secrets.token_urlsafe(16)
+        session["oauth_state"] = state
+        return redirect(build_authorize_url(Config, state))
+
+    @app.route("/callback")
+    def callback():
+        code = request.args.get("code")
+        if not code:
+            return callback_error_response("Missing OAuth code")
+        # NOTE: state is sent but not verified. Keyrock requires the
+        # parameter; verifying it needs the session cookie to survive a
+        # cross-origin redirect from Keyrock on another port over plain http,
+        # which browsers withhold under SameSite=Lax. Acceptable for a LAN
+        # demonstrator; a production deployment would use https and a single
+        # origin behind a reverse proxy.
+
+        try:
+            token_payload = exchange_code_for_token(Config, code)
+            access_token = token_payload["access_token"]
+            userinfo = fetch_user_info(Config, access_token)
+            app.logger.warning("KEYROCK USERINFO: %r", userinfo)
+        except Exception as exc:
+            app.logger.exception("OAuth exchange failed: %s", exc)
+            return callback_error_response(f"OAuth exchange failed: {exc}")
+
+        session["access_token"] = access_token
+        session["role"] = infer_role_from_userinfo(userinfo)
+        session["user"] = userinfo.get("username") or userinfo.get("displayName") or "user"
+        return redirect(url_for("dashboard"))
+
+    @app.route("/logout")
+    @login_required
+    def logout():
+        logout_session()
+        return redirect(url_for("login"))
+
+    @app.route("/api/zones")
+    @login_required
+    def api_zones():
+        try:
+            zones = fiware_client.get_zones()
+            return jsonify({"ok": True, "zones": zones, "role": session.get("role", "Viewer")})
+        except Exception as exc:
+            return jsonify({"ok": False, "error": f"Orion unavailable: {exc.__class__.__name__}"}), 503
+
+    @app.route("/api/cmd", methods=["POST"])
+    @admin_required
+    def api_cmd():
+        body = request.get_json(silent=True) or {}
+        zone = body.get("zone")
+        command = body.get("command")
+        value = body.get("value")
+
+        if zone not in ALLOWED_ZONE_INPUTS:
+            return jsonify({"ok": False, "error": "Invalid zone"}), 400
+
+        device_id = zone if zone.startswith("zone") else f"zone{zone[-3:]}"
+
+        try:
+            normalized = normalize_value(command, value)
+        except ValueError:
+            return jsonify({"ok": False, "error": "Invalid command payload"}), 400
+
+        if command in {"setmin", "setmax"}:
+            try:
+                zone_state = fiware_client.get_zone_by_device(device_id)
+            except Exception:
+                return jsonify({"ok": False, "error": "Unable to validate threshold right now"}), 503
+
+            if not zone_state:
+                return jsonify({"ok": False, "error": "Zone state unavailable"}), 503
+
+            min_value = zone_state.get("moistureMin")
+            max_value = zone_state.get("moistureMax")
+            requested = float(normalized)
+
+            if command == "setmin":
+                min_value = requested
+            else:
+                max_value = requested
+
+            if min_value is None or max_value is None:
+                return jsonify({"ok": False, "error": "Zone thresholds unavailable"}), 503
+
+            if not (0 < float(min_value) < float(max_value) <= 100):
+                return jsonify({"ok": False, "error": "Thresholds must satisfy 0 < min < max <= 100"}), 400
+
+        result = command_client.publish_command(device_id=device_id, command=command, value=normalized)
+        status_code = 200 if result.get("ok") else 504
+        return jsonify(result), status_code
+
+    @app.context_processor
+    def inject_globals():
+        return {
+            "current_role": session.get("role", "Viewer"),
+            "current_user": session.get("user", ""),
+        }
+
+    return app
+
+
+app = create_app()
+
+
+if __name__ == "__main__":
+    with suppress(KeyboardInterrupt):
+        app.run(host="0.0.0.0", port=5000, debug=False)

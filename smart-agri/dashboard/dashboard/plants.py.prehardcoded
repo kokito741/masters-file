@@ -1,0 +1,87 @@
+from datetime import datetime, timedelta, timezone
+
+# Stage boundaries as a fraction of days-to-harvest. Single source of truth:
+# both the current-stage label and the projected schedule derive from this,
+# so they cannot disagree.
+STAGES = (
+    ("germination", 0.00),
+    ("vegetative",  0.15),
+    ("maturation",  0.45),
+    ("harvest",     0.80),
+)
+
+PLANTS = {
+    "basil":         {"label": "Basil",         "min": 35, "max": 50, "days": 60, "tmin": 5, "tmax": 38},
+    "green_onion":   {"label": "Green Onion",   "min": 30, "max": 45, "days": 55, "tmin": 2, "tmax": 38},
+    "radish":        {"label": "Radish",        "min": 32, "max": 44, "days": 28, "tmin": 2, "tmax": 36},
+    "lettuce":       {"label": "Lettuce",       "min": 40, "max": 55, "days": 45, "tmin": 2, "tmax": 30},
+    "spinach":       {"label": "Spinach",       "min": 38, "max": 52, "days": 40, "tmin": 0, "tmax": 28},
+    "mint":          {"label": "Mint",          "min": 40, "max": 58, "days": 70, "tmin": 2, "tmax": 36},
+    "cherry_tomato": {"label": "Cherry Tomato", "min": 35, "max": 48, "days": 75, "tmin": 8, "tmax": 35},
+    "fallow":        {"label": "- Empty -",     "min": None, "max": None, "days": None, "tmin": None, "tmax": None},
+}
+
+
+def parse_planted_at(value):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def growth_stage(planted_at, total_days):
+    if not planted_at or not total_days:
+        return "n/a", 0
+    elapsed = (datetime.now(timezone.utc) - planted_at).days
+    if elapsed < 0:
+        return "not planted", 0
+    fraction = elapsed / total_days
+    stage = STAGES[0][0]
+    for name, start_fraction in STAGES:
+        if fraction >= start_fraction:
+            stage = name
+    return stage, elapsed
+
+
+def stage_schedule(planted_at, total_days):
+    """Projected calendar window for each stage. Returns (plan, harvest_date).
+    Estimates only: derived from nominal days-to-harvest, not observed growth."""
+    if not planted_at or not total_days:
+        return [], None
+
+    start = planted_at.date()
+    today = datetime.now(timezone.utc).date()
+    bounds = [round(f * total_days) for _, f in STAGES] + [int(total_days)]
+
+    plan = []
+    for index, (name, _) in enumerate(STAGES):
+        start_day, next_day = bounds[index], bounds[index + 1]
+        end_day = max(next_day - 1, start_day)
+        start_date = start + timedelta(days=start_day)
+        end_date = start + timedelta(days=end_day)
+
+        if today < start_date:
+            state = "upcoming"
+        elif today > end_date:
+            state = "done"
+        else:
+            state = "current"
+
+        plan.append({
+            "name": name,
+            "state": state,
+            "startDay": start_day,
+            "endDay": end_day,
+            "startDate": start_date.isoformat(),
+            "endDate": end_date.isoformat(),
+        })
+
+    # Past nominal harvest: nothing matched, so pin the last stage as current
+    # rather than showing a plant with no active stage.
+    if plan and not any(item["state"] == "current" for item in plan) and today >= start:
+        plan[-1]["state"] = "current"
+
+    harvest_date = (start + timedelta(days=int(total_days))).isoformat()
+    return plan, harvest_date

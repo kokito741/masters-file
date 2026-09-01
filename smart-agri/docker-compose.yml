@@ -1,0 +1,257 @@
+version: "3"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FIWARE Smart Irrigation Stack
+# mongo-db · orion · mosquitto · iot-agent-ul · crate-db · quantumleap
+# Credentials from .env
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Persistent store for Orion + IoT Agent ───────────────────────────────────
+  mongo-db:
+    image: mongo:4.4
+    container_name: mongo-db
+    command: --nojournal
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - fiware
+    restart: always
+
+  # ── Context Broker ───────────────────────────────────────────────────────────
+  orion:
+    image: fiware/orion:3.10.1
+    container_name: orion
+    depends_on:
+      - mongo-db
+    ports:
+      - "1026:1026"
+    command:
+      - -dbhost
+      - mongo-db
+      - -dbuser
+      - root
+      - -dbpwd
+      - ${MONGO_ROOT_PASSWORD}
+      - -dbAuthDb
+      - admin
+      - -logLevel
+      - DEBUG
+    networks:
+      - fiware
+    restart: always
+
+  # ── MQTT Broker ──────────────────────────────────────────────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    networks:
+      - fiware
+    restart: always
+
+  # ── IoT Agent UltraLight 2.0 (MQTT transport) ────────────────────────────────
+  iot-agent-ul:
+    image: fiware/iotagent-ul:1.21.0
+    container_name: iot-agent-ul
+    init: true
+    depends_on:
+      - mongo-db
+      - orion
+      - mosquitto
+    ports:
+      - "4041:4041"
+      - "7896:7896"
+    environment:
+      - IOTA_CB_HOST=orion
+      - IOTA_CB_PORT=1026
+      - IOTA_CB_NGSI_VERSION=v2
+      - IOTA_NORTH_PORT=4041
+      - IOTA_PROVIDER_URL=http://iot-agent-ul:4041
+      - IOTA_REGISTRY_TYPE=mongodb
+      - IOTA_MONGO_HOST=mongo-db
+      - IOTA_MONGO_PORT=27017
+      - IOTA_MONGO_DB=iotagentul
+      - IOTA_MONGO_USER=root
+      - IOTA_MONGO_PASSWORD=${MONGO_ROOT_PASSWORD}
+      - IOTA_MONGO_AUTH_SOURCE=admin
+      - IOTA_MQTT_HOST=mosquitto
+      - IOTA_MQTT_PORT=1883
+      - IOTA_DEFAULT_RESOURCE=/iot/d
+      - IOTA_LOG_LEVEL=DEBUG
+      - IOTA_TIMESTAMP=true
+      - IOTA_AUTOCAST=true
+    networks:
+      - fiware
+    restart: always
+
+  # ── Time-Series Database — CrateDB ───────────────────────────────────────────
+  crate-db:
+    image: crate:4.6.7
+    container_name: crate-db
+    ports:
+      - "4200:4200"   # HTTP REST + Admin UI  → open http://server-ip:4200
+      - "4300:4300"   # Transport (cluster)
+    command: >
+      crate
+      -Cauth.host_based.enabled=false
+      -Ccluster.name=smartagri
+      -Chttp.cors.enabled=true
+      -Chttp.cors.allow-origin="*"
+    environment:
+      - CRATE_HEAP_SIZE=1g
+    volumes:
+      - crate-data:/data
+    networks:
+      - fiware
+    restart: always
+
+  # ── QuantumLeap — NGSI notifications → CrateDB ───────────────────────────────
+  quantumleap:
+    image: orchestracities/quantumleap:latest
+    container_name: quantumleap
+    depends_on:
+      - crate-db
+    ports:
+      - "8668:8668"
+    environment:
+      - CRATE_HOST=crate-db
+      - CRATE_PORT=4200
+      - USE_GEOCODING=False
+      - LOGLEVEL=DEBUG
+    networks:
+      - fiware
+    restart: always
+
+  interlock:
+    build: ./interlock
+    container_name: interlock
+    restart: unless-stopped
+    depends_on:
+      - orion
+    environment:
+      - ORION_URL=http://orion:1026
+      - FIWARE_SERVICE=smartfarm
+      - FIWARE_SERVICEPATH=/
+      - SOURCE_ENTITY=urn:ngsi-ld:Zone:001
+      - PROTECTED_ENTITIES=urn:ngsi-ld:Zone:002,urn:ngsi-ld:Zone:003
+      - LEVEL_ABORT=12
+      - LEVEL_CLEAR=25
+      - REPEAT_INTERVAL_S=300
+    ports:
+      - "5001:5001"
+    networks:
+      - fiware
+
+  # ── MySQL — backing store for Keyrock only ───────────────────────────────────
+  mysql-db:
+    image: mysql:5.7
+    container_name: mysql-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_ROOT_HOST=%
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - fiware
+    restart: always
+
+  # ── Keyrock — Identity Manager (users, roles, OAuth2) ────────────────────────
+  keyrock:
+    image: fiware/idm:8.4.0
+    container_name: keyrock
+    depends_on:
+      - mysql-db
+    ports:
+      - "3005:3005"
+    environment:
+      - IDM_DB_HOST=mysql-db
+      - IDM_DB_USER=root
+      - IDM_DB_PASS=${MYSQL_ROOT_PASSWORD}
+      - IDM_DB_NAME=idm
+      - IDM_HOST=http://localhost:3005
+      - IDM_PORT=3005
+      - IDM_ADMIN_USER=admin
+      - IDM_ADMIN_EMAIL=admin@test.com
+      - IDM_ADMIN_PASS=1234
+      - IDM_CORS_ENABLED=true
+      - IDM_CORS_ORIGIN=*
+      - IDM_DB_SEED=true
+    networks:
+      - fiware
+    restart: always
+
+  # ── Grafana — charts, reads CrateDB over the postgres wire protocol ──────────
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana
+    depends_on:
+      - crate-db
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      # both of these are required for the Flask dashboard iframe embed
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_USERS_DEFAULT_THEME=light
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - fiware
+    restart: always
+
+  dashboard:
+    build: ./dashboard/dashboard
+    container_name: dashboard
+    restart: unless-stopped
+    depends_on:
+      - orion
+      - mosquitto
+      - keyrock
+    environment:
+      - ORION_URL=http://orion:1026
+      - QUANTUMLEAP_URL=http://quantumleap:8668
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - FIWARE_SERVICE=smartfarm
+      - FIWARE_SERVICEPATH=/
+      - FIWARE_API_KEY=4jggokgpepnvsb2uv4s40d59ov
+      - KEYROCK_PUBLIC_URL=http://192.168.0.164:3005
+      - KEYROCK_URL=http://keyrock:3005
+      - KEYROCK_CLIENT_ID=${KEYROCK_CLIENT_ID}
+      - KEYROCK_CLIENT_SECRET=${KEYROCK_CLIENT_SECRET}
+      - CALLBACK_URL=http://192.168.0.164:5050/callback
+      - GRAFANA_PANEL_URL=${GRAFANA_PANEL_URL}
+      - SECRET_KEY=${FLASK_SECRET_KEY}
+      - CATALOG_DB_HOST=192.168.0.131
+      - CATALOG_DB_PORT=3306
+      - CATALOG_DB_USER=smartfarm
+      - CATALOG_DB_PASSWORD=98745632k
+      - CATALOG_DB_NAME=smartfarm
+    ports:
+      - "5050:5000"
+    networks:
+      - fiware
+# ── Volumes & Networks ────────────────────────────────────────────────────────
+volumes:
+  mongo-data:
+  crate-data:
+  mysql-data:
+  grafana-data:
+
+networks:
+  fiware:
+    driver: bridge

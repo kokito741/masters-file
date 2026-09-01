@@ -1,0 +1,44 @@
+{
+  "run_id": "lockstep-n50-20260831-182621",
+  "zones": 50,
+  "connections": 50,
+  "interval_s": 10.0,
+  "jitter": false,
+  "duration_s": 600,
+  "poll_resolution_ms": 100.0,
+  "messages_published": 3001,
+  "probes_completed": 600,
+  "probe_timeouts": 0,
+  "t_publish": {
+    "n": 3001,
+    "mean_ms": 1.2,
+    "p50_ms": 1.2,
+    "p95_ms": 1.9,
+    "p99_ms": 2.4,
+    "max_ms": 4.7
+  },
+  "t_orion": {
+    "n": 600,
+    "mean_ms": 114.1,
+    "p50_ms": 114.5,
+    "p95_ms": 118.6,
+    "p99_ms": 121.6,
+    "max_ms": 127.9
+  },
+  "t_crate": {
+    "n": 600,
+    "mean_ms": 237.3,
+    "p50_ms": 118.9,
+    "p95_ms": 128.5,
+    "p99_ms": 882.4,
+    "max_ms": 61928.3
+  },
+  "backlog": {
+    "n": 600,
+    "mean_ms": 123.2,
+    "p50_ms": 4.2,
+    "p95_ms": 7.5,
+    "p99_ms": 765.9,
+    "max_ms": 61814.2
+  }
+}
